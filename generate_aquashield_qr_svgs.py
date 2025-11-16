@@ -87,7 +87,7 @@ for name, text in payloads.items():
     qr = segno.make(text, error="M")
     
     # Convert QR → inline SVG text
-    svg = qr.svg_inline(scale=8, border=4)
+    svg = qr.svg_inline(scale=5, border=4)
     
     # Streamlit can render SVG via markdown (unsafe allows raw SVG)
     st.subheader(name)
