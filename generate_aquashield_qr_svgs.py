@@ -1,6 +1,18 @@
 import streamlit as st
 import segno
 
+st.title("AquaShield QR Library")
+
+for name, text in payloads.items():
+    qr = segno.make(text, error="M")
+    
+    # Convert QR → inline SVG text
+    svg = qr.svg_inline(scale=8, border=4)
+    
+    # Streamlit can render SVG via markdown (unsafe allows raw SVG)
+    st.subheader(name)
+    st.markdown(svg, unsafe_allow_html=True)
+
 # Your QR data
 payloads = {
     "qr01_bottle": """AQUASHIELD v1.0
@@ -89,16 +101,3 @@ ES:
 Método rápido: Tela → SODIS 6 hrs → Usar. Si el agua está turbia, reposar 6–12h. No beber agua con olor a combustible.
 """
 }
-
-st.title("AquaShield QR Library")
-
-for name, text in payloads.items():
-    qr = segno.make(text, error="M")
-    
-    # Convert QR → inline SVG text
-    svg = qr.svg_inline(scale=8, border=4)
-    
-    # Streamlit can render SVG via markdown (unsafe allows raw SVG)
-    st.subheader(name)
-    st.markdown(svg, unsafe_allow_html=True)
-    
