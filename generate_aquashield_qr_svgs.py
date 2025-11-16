@@ -1,7 +1,7 @@
 import segno
 
 payloads = {
-    "qr01_bottle.svg": """AQUASHIELD v1.0
+    "qr01_bottle": """AQUASHIELD v1.0
 BOTTLE FILTER (EN/ES)
 
 EN:
@@ -11,7 +11,7 @@ ES:
 Tela en la boca. Agrega grava, arena, carbón. Desecha 1L inicial. Verter despacio. Desinfecta siempre: hervir, SODIS o cloro.
 """,
 
-    "qr02_cloth.svg": """AQUASHIELD v1.0
+    "qr02_cloth": """AQUASHIELD v1.0
 CLOTH FILTER (EN/ES)
 
 EN:
@@ -21,7 +21,7 @@ ES:
 Dobla tela 4–8 capas. Filtra dos veces. Debes desinfectar: hervir, SODIS o cloro.
 """,
 
-    "qr03_bucket.svg": """AQUASHIELD v1.0
+    "qr03_bucket": """AQUASHIELD v1.0
 BUCKET FILTER (EN/ES)
 
 EN:
@@ -31,7 +31,7 @@ ES:
 Capas arriba→abajo: tela, grava, grava fina, carbón, arena, tela. Dejar gotear. Desinfectar después.
 """,
 
-    "qr04_ceramic.svg": """AQUASHIELD v1.0
+    "qr04_ceramic": """AQUASHIELD v1.0
 CERAMIC FILTER (EN/ES)
 
 EN:
@@ -41,7 +41,7 @@ ES:
 Arcilla+aserrín 3:1. Moldea. Seca 2–3 días. Cuece. Filtra microbios, no químicos. Desinfecta el agua después.
 """,
 
-    "qr05_sodis.svg": """AQUASHIELD v1.0
+    "qr05_sodis": """AQUASHIELD v1.0
 SODIS (EN/ES)
 
 EN:
@@ -51,7 +51,7 @@ ES:
 Botella PET clara. Agita 20 seg. Sol 6 hrs (nublado: 2 días). Mata microbios, no químicos.
 """,
 
-    "qr06_3tier.svg": """AQUASHIELD v1.0
+    "qr06_3tier": """AQUASHIELD v1.0
 3-TIER METHOD (EN/ES)
 
 EN:
@@ -67,7 +67,7 @@ ES:
 NO usar agua con olor a combustible/químicos.
 """,
 
-    "qr07_safe_rules.svg": """AQUASHIELD v1.0
+    "qr07_safe_rules": """AQUASHIELD v1.0
 SAFE WATER (EN/ES)
 
 EN:
@@ -77,7 +77,7 @@ ES:
 Usa envases limpios con tapa. No tocar adentro. Filtrar+desinfectar siempre. Si huele a combustible, químicos o aguas negras, NO usar.
 """,
 
-    "qr08_emergency_fast.svg": """AQUASHIELD v1.0
+    "qr08_emergency_fast": """AQUASHIELD v1.0
 EMERGENCY WATER (EN/ES)
 
 EN:
@@ -88,18 +88,13 @@ Método rápido: Tela → SODIS 6 hrs → Usar. Si el agua está turbia, reposar
 """
 }
 
-# Recommended parameters for printing / signage / cards
-scale = 8     # Increase to 10–12 for large posters
-border = 4    # Quiet zone (minimum required for reliable scanning)
+# Recommended printing parameters
+scale = 8
+border = 4
 
-for filename, text in payloads.items():
-    qr = segno.make(text, micro=False, error='M')  
-    # error='M' gives good balance for printing; change to 'Q' or 'H' if adding logos
-    qr.save(
-        filename,
-        kind='svg',
-        scale=scale,
-        border=border,
-        xmldecl=True
-    )
-    print("Saved", filename)
+for name, text in payloads.items():
+    qr = segno.make(text, micro=False, error='M')
+    svg = qr.svg_inline(scale=scale, border=border)
+    print("\n\n===== BEGIN SVG:", name, "=====\n")
+    print(svg)
+    print("\n===== END SVG:", name, "=====\n")
