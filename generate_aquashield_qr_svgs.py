@@ -5,16 +5,7 @@ st.title("AquaShield QR Library")
 
 # Your QR data
 payloads = {
-    "qr01_bottle": """AQUASHIELD v1.0
-BOTTLE FILTER (EN/ES)
-
-EN:
-Cloth on bottle mouth. Add gravel, sand, charcoal. Discard first 1L. Pour slow. Always disinfect after: boil, SODIS, or chlorine.
-
-ES:
-Tela en la boca. Agrega grava, arena, carbón. Desecha 1L inicial. Verter despacio. Desinfecta siempre: hervir, SODIS o cloro.
-""",
-
+    "qr01_bottle": """AQUASHIELD v1.0,BOTTLE FILTER (EN/ES), EN: Cloth on bottle mouth. Add gravel, sand, charcoal. Discard first 1L. Pour slow. Always disinfect after: boil, SODIS, or chlorine., ES: Tela en la boca. Agrega grava, arena, carbón. Desecha 1L inicial. Verter despacio. Desinfecta siempre: hervir, SODIS o cloro.""",
     "qr02_cloth": """AQUASHIELD v1.0
 CLOTH FILTER (EN/ES)
 
