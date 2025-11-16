@@ -1,7 +1,7 @@
 import streamlit as st
 import segno
 
-st.title("AquaShield QR Library")
+st.title("AquaShield QR Library - Text Instructions")
 
 # Your QR data
 payloads = {
