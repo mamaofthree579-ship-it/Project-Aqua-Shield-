@@ -1,0 +1,12 @@
+ICON SET (Text Descriptions)
+— Use to make low-literacy water safety cards —
+
+[ICON: Bottle cut open] = Prepare bottle
+[ICON: Cloth] = Cover neck with cloth
+[ICON: Pebbles] = Add gravel
+[ICON: Sand] = Add sand
+[ICON: Charcoal] = Add crushed charcoal
+[ICON: Water droplets] = Water dripping through
+[ICON: Sun] = Solar disinfection
+[ICON: Fire pot] = Boiling water
+[ICON: Skull] = Warning: chemicals or fuel
