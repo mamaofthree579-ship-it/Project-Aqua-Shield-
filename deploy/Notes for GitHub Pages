@@ -1,0 +1,9 @@
+# GitHub Pages structure (suggested)
+- docs/ (MkDocs or Docusaurus output)
+- index.html
+- about/
+- filter-designs/
+- how-to-build/
+- regional-guides/
+
+Suggested static generators: Docusaurus (strong i18n), MkDocs (simple), Hugo (fast).
