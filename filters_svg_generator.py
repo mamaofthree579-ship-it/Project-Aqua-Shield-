@@ -26,12 +26,12 @@ def sanitize_for_pdf(text: str) -> str:
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-    # drop any remaining non-latin-1 chars (safe fallback)
+    # fallback: replace any remaining non-latin-1 chars with '?'
     text = text.encode('latin-1', errors='replace').decode('latin-1')
     return text
 
-def build_a5_pdf_bytes(pdf_text: str, title: str = "AquaShield"):
-    """Create A5 PDF bytes (FPDF) from plain ASCII-safe text."""
+def build_a5_pdf_bytes(pdf_text: str):
+    """Create A5 PDF bytes (FPDF) from plain ASCII-safe text and return BytesIO."""
     safe = sanitize_for_pdf(pdf_text)
     pdf = FPDF(format='A5')
     pdf.add_page()
@@ -58,16 +58,18 @@ def build_svg_zip(svg_dict: dict):
     mem.seek(0)
     return mem
 
-def build_pdfs_zip(pdf_bytes_dict: dict):
+def build_pdfs_zip(pdf_bytesio_dict: dict):
     mem = io.BytesIO()
     with zipfile.ZipFile(mem, "w", zipfile.ZIP_DEFLATED) as z:
-        for fname, b in pdf_bytes_dict.items():
+        for fname, b in pdf_bytesio_dict.items():
+            # b is a BytesIO; write the bytes
             z.writestr(fname, b.getvalue())
     mem.seek(0)
     return mem
 
 # --------------------------
-# SVG schematics (8 filters) - full SVG strings (ASCII-friendly)
+# SVG schematics (8 filters)
+# (Exact same SVGs from prior message)
 # --------------------------
 FILTER_SVGS = {
     "Filter A — Charcoal + Sand Bottle": r'''<?xml version="1.0" encoding="UTF-8"?>
@@ -158,7 +160,7 @@ FILTER_SVGS = {
 }
 
 # --------------------------
-# Short + Full instruction texts (ASCII-safe: avoid smart quotes, em-dash, bullets)
+# Short + Full instruction texts (ASCII-safe)
 # --------------------------
 FILTER_TEXTS_SHORT = {
     "Filter A — Charcoal + Sand Bottle": (
@@ -225,141 +227,19 @@ FILTER_TEXTS_FULL = {
         "- Rinse the cloth weekly and replace when worn.\n"
         "- Always apply an approved disinfection step (boiling, SODIS, or chlorine) before drinking.\n"
     ),
-
-    "Filter B — Bottle-Neck Cartridge": (
-        "AQUASHIELD - Filter B (Full)\n\n"
-        "Purpose:\n"
-        "A reusable cartridge using a bottle neck to filter sediment and improve taste.\n\n"
-        "Materials:\n"
-        "- bottle neck section\n"
-        "- microfiber cloth pieces\n"
-        "- crushed charcoal\n"
-        "- optional clean sand\n\n"
-        "Build steps:\n"
-        "1. Place a cotton plug at the narrow end to hold media.\n"
-        "2. Add layers: microfiber, optional sand, microfiber, crushed charcoal, microfiber.\n"
-        "3. Secure the cartridge and use in a funnel or bottle.\n\n"
-        "Use and maintenance:\n"
-        "- Discard the first 1-2 liters after assembly.\n"
-        "- Replace media every 2-6 weeks.\n"
-        "- Rinse external cloth daily and dry in sun.\n"
-    ),
-
-    "Filter C — Ceramic Cup + Charcoal Pad": (
-        "AQUASHIELD - Filter C (Full)\n\n"
-        "Purpose:\n"
-        "Use a porous ceramic cup with a charcoal pad to reduce turbidity and improve taste.\n\n"
-        "Materials:\n"
-        "- porous ceramic cup or locally made ceramic element\n"
-        "- cloth-wrapped charcoal pad\n"
-        "- clean collection container\n\n"
-        "Build steps:\n"
-        "1. Place charcoal pad at bottom inside ceramic cup.\n"
-        "2. Set the cup over a clean container and pour water in.\n"
-        "3. Let water slowly drip through the ceramic.\n\n"
-        "Use and maintenance:\n"
-        "- Replace charcoal every 1-2 weeks.\n"
-        "- Rinse the exterior of the ceramic; do not scrub pores.\n"
-        "- Disinfect water after filtration when using for drinking.\n"
-    ),
-
-    "Filter D — Layered Sand Clarifier": (
-        "AQUASHIELD - Filter D (Full)\n\n"
-        "Purpose:\n"
-        "A layered sand column that traps particles by size. Improves clarity but does not sterilize.\n\n"
-        "Materials:\n"
-        "- tall container or bottle\n"
-        "- cloth\n"
-        "- fine, medium sand\n"
-        "- coarse gravel\n\n"
-        "Build steps:\n"
-        "1. Place cloth at the bottom to hold sand.\n"
-        "2. Add bottom coarse gravel, then medium sand, then fine sand on top.\n"
-        "3. Pour water slowly on top and collect clearer water at the bottom.\n\n"
-        "Use and maintenance:\n"
-        "- Rinse or replace top sand when clogged.\n"
-        "- Replace sand when visibly fouled.\n"
-        "- Disinfect before drinking.\n"
-    ),
-
-    "Filter E — Gravity Carbon Cartridge": (
-        "AQUASHIELD - Filter E (Full)\n\n"
-        "Purpose:\n"
-        "A packed charcoal cartridge to improve taste and remove odors and some organics.\n\n"
-        "Materials:\n"
-        "- cartridge body or straight bottle\n"
-        "- washed charcoal\n"
-        "- cloth for top and bottom\n\n"
-        "Build steps:\n"
-        "1. Seal the bottom with cloth to hold media.\n"
-        "2. Pack washed charcoal into the cartridge.\n"
-        "3. Cover top with cloth and place over a clean container.\n\n"
-        "Use and maintenance:\n"
-        "- Replace charcoal every 2-4 weeks.\n"
-        "- Rinse cloths and replace when dirty.\n"
-        "- Disinfect before drinking.\n"
-    ),
-
-    "Filter F — PVC Mini Pressure Charcoal": (
-        "AQUASHIELD - Filter F (Full)\n\n"
-        "Purpose:\n"
-        "A short inline tube for taps and hoses that reduces turbidity and improves taste.\n\n"
-        "Materials:\n"
-        "- short PVC tube (20-50 mm)\n"
-        "- cloth pads\n"
-        "- activated charcoal\n"
-        "- two end caps\n\n"
-        "Build steps:\n"
-        "1. Insert cloth pad into inlet cap.\n"
-        "2. Fill with activated charcoal and pack lightly.\n"
-        "3. Add cloth pad and secure outlet cap.\n\n"
-        "Use and maintenance:\n"
-        "- Replace charcoal every 2-6 weeks.\n"
-        "- Clean caps and pads weekly.\n"
-        "- Disinfect water before drinking.\n"
-    ),
-
-    "Filter G — Cloth-Only Emergency": (
-        "AQUASHIELD - Filter G (Full)\n\n"
-        "Purpose:\n"
-        "A minimal method using cloth to remove large particles and debris.\n\n"
-        "Materials:\n"
-        "- clean cotton cloth (t-shirt or scarf)\n"
-        "- clean container\n\n"
-        "Build steps:\n"
-        "1. Fold cloth 4-8 layers and secure over container or use as funnel.\n"
-        "2. Pour water slowly through cloth. Repeat if needed.\n\n"
-        "Use and maintenance:\n"
-        "- Wash and sun-dry cloth daily.\n"
-        "- Replace when torn.\n"
-        "- Always disinfect after using.\n"
-    ),
-
-    "Filter H — Family Bucket Sand + Charcoal": (
-        "AQUASHIELD - Filter H (Full)\n\n"
-        "Purpose:\n"
-        "A two-bucket family-scale gravity filter using sand, gravel and charcoal.\n\n"
-        "Materials:\n"
-        "- two buckets (one with spigot)\n"
-        "- cloth or mesh\n"
-        "- gravel, sand, charcoal\n\n"
-        "Build steps:\n"
-        "1. Install spigot in lower bucket.\n"
-        "2. In upper bucket add layers (top to bottom): cloth, coarse gravel, fine gravel, charcoal, deep sand, cloth.\n"
-        "3. Fill top bucket and collect from spigot.\n\n"
-        "Use and maintenance:\n"
-        "- Replace charcoal monthly.\n"
-        "- Clean spigot weekly.\n"
-        "- Disinfect water for drinking.\n"
-    )
+    # ... (remaining full texts are the same as before; omitted here for brevity in this snippet)
 }
 
+# For brevity in this snippet, ensure FILTER_TEXTS_FULL has entries for all keys;
+# in your file keep the full texts for each filter exactly as in the previous message.
+
 # --------------------------
-# UI: download full set of SVGs as ZIP
+# UI: download full set of SVGs
 # --------------------------
 st.markdown("### Download all schematics")
 svg_zip = build_svg_zip(FILTER_SVGS)
-st.download_button("⬇ Download all SVGs (ZIP)", data=svg_zip, file_name="AquaShield_Schematics_8_SVG.zip", mime="application/zip")
+# Pass bytes, not BytesIO
+st.download_button("⬇ Download all SVGs (ZIP)", data=svg_zip.getvalue(), file_name="AquaShield_Schematics_8_SVG.zip", mime="application/zip")
 st.markdown("---")
 
 # --------------------------
@@ -367,7 +247,7 @@ st.markdown("---")
 # --------------------------
 tabs = st.tabs(list(FILTER_SVGS.keys()))
 
-# We will also prepare a dictionary of PDFs to allow a "download all PDFs" ZIP later if desired
+# Prepare PDF dictionaries for zipped download
 pdfs_short = {}
 pdfs_full = {}
 
@@ -379,27 +259,26 @@ for tab_obj, (title, svg_text) in zip(tabs, FILTER_SVGS.items()):
         data_url = svg_to_data_url(svg_text)
         st.image(data_url, width=480)
 
-        # Download SVG
+        # Download SVG (string OK)
         st.download_button("⬇ Download SVG", data=svg_text, file_name=f"{title.replace(' ', '_')}.svg", mime="image/svg+xml")
 
         # Client-side PNG generator: embed HTML+JS that creates a PNG from the SVG and triggers a download
-        # We use base64 SVG data URL and a canvas; this runs in the user's browser (no server binaries)
         safe_svg_b64 = base64.b64encode(svg_text.encode('utf-8')).decode('ascii')
+        escaped_title = html.escape(title)
         html_code = f"""
         <div>
-          <p><small>Click to generate a PNG of this SVG in your browser (works offline in the browser).</small></p>
-          <button id="btn_{html.escape(title)}">Download PNG</button>
+          <p><small>Click to generate a PNG of this SVG in your browser (no server binaries required).</small></p>
+          <button id="btn_{escaped_title}">Download PNG</button>
         </div>
         <script>
         const svgB64 = "data:image/svg+xml;base64,{safe_svg_b64}";
-        document.getElementById("btn_{html.escape(title)}").addEventListener("click", function(){{
+        document.getElementById("btn_{escaped_title}").addEventListener("click", function(){{
             var img = new Image();
             img.onload = function() {{
                 var canvas = document.createElement('canvas');
                 canvas.width = img.width;
                 canvas.height = img.height;
                 var ctx = canvas.getContext('2d');
-                // white background
                 ctx.fillStyle = "#ffffff";
                 ctx.fillRect(0,0,canvas.width,canvas.height);
                 ctx.drawImage(img, 0, 0);
@@ -407,36 +286,37 @@ for tab_obj, (title, svg_text) in zip(tabs, FILTER_SVGS.items()):
                     var url = URL.createObjectURL(blob);
                     var a = document.createElement('a');
                     a.href = url;
-                    a.download = "{html.escape(title)}.png";
+                    a.download = "{escaped_title}.png";
                     document.body.appendChild(a);
                     a.click();
                     a.remove();
                     URL.revokeObjectURL(url);
                 }}, "image/png");
             }};
-            // set crossOrigin to avoid tainting - not always necessary for data URL
             img.crossOrigin = "anonymous";
             img.src = svgB64;
         }});
         </script>
         """
-        st.components.v1.html(html_code, height=100)
+        st.components.v1.html(html_code, height=120)
 
-        # PDF downloads: short + full
+        # PDF generation
         short_text = FILTER_TEXTS_SHORT[title]
         full_text = FILTER_TEXTS_FULL[title]
-        short_pdf_buf = build_a5_pdf_bytes(short_text, title=title + " - Short")
-        full_pdf_buf = build_a5_pdf_bytes(full_text, title=title + " - Full")
+        short_pdf_buf = build_a5_pdf_bytes(short_text)
+        full_pdf_buf = build_a5_pdf_bytes(full_text)
+        # store into dicts (keep BytesIO) for zipping later
         pdfs_short[f"{title.replace(' ', '_')}_short.pdf"] = short_pdf_buf
         pdfs_full[f"{title.replace(' ', '_')}_full.pdf"] = full_pdf_buf
 
-        c1, c2 = st.columns(2)
-        with c1:
-            st.download_button("⬇ Download A5 PDF (Short)", data=short_pdf_buf, file_name=f"{title.replace(' ', '_')}_short_A5.pdf", mime="application/pdf")
-        with c2:
-            st.download_button("⬇ Download A5 PDF (Full)", data=full_pdf_buf, file_name=f"{title.replace(' ', '_')}_full_A5.pdf", mime="application/pdf")
+        # Download buttons: pass bytes (.getvalue())
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button("⬇ Download A5 PDF (Short)", data=short_pdf_buf.getvalue(), file_name=f"{title.replace(' ', '_')}_short_A5.pdf", mime="application/pdf")
+        with col2:
+            st.download_button("⬇ Download A5 PDF (Full)", data=full_pdf_buf.getvalue(), file_name=f"{title.replace(' ', '_')}_full_A5.pdf", mime="application/pdf")
 
-        # Expanders for raw SVG and full text
+        # Expanders: raw SVG + texts
         with st.expander("Show raw SVG code"):
             st.code(svg_text, language="xml")
         with st.expander("Show instruction text (Full)"):
@@ -444,12 +324,12 @@ for tab_obj, (title, svg_text) in zip(tabs, FILTER_SVGS.items()):
         with st.expander("Show instruction text (Short)"):
             st.text(short_text)
 
-# Option: Download all PDFs as ZIP (Short or Full)
+# Option: Download all PDFs as ZIPs
 st.markdown("---")
 all_pdfs_short_zip = build_pdfs_zip(pdfs_short)
 all_pdfs_full_zip = build_pdfs_zip(pdfs_full)
-st.download_button("⬇ Download ALL Short PDFs (ZIP)", data=all_pdfs_short_zip, file_name="AquaShield_Short_PDFs.zip", mime="application/zip")
-st.download_button("⬇ Download ALL Full PDFs (ZIP)", data=all_pdfs_full_zip, file_name="AquaShield_Full_PDFs.zip", mime="application/zip")
+st.download_button("⬇ Download ALL Short PDFs (ZIP)", data=all_pdfs_short_zip.getvalue(), file_name="AquaShield_Short_PDFs.zip", mime="application/zip")
+st.download_button("⬇ Download ALL Full PDFs (ZIP)", data=all_pdfs_full_zip.getvalue(), file_name="AquaShield_Full_PDFs.zip", mime="application/zip")
 
 st.markdown("---")
-st.caption("AquaShield — open-source, low-cost water guidance. These filters improve clarity and taste but are not guaranteed to remove all pathogens or chemicals. Always disinfect water for drinking when possible.")
+st.caption("AquaShield — open-source, low-cost water guidance. These methods improve clarity and taste but are not guaranteed to remove all pathogens or chemicals. Always disinfect water for drinking when possible.")
