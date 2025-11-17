@@ -27,6 +27,48 @@ def create_qr(payload):
 # PAYLOADS — 8 AquaShield Instructions (EN + ES)
 # -------------------------------------------------------------
 
+qr = create_qr(payload)
+
+# Generate PNG in-memory
+png_buffer = io.BytesIO()
+qr.save(png_buffer, kind="png", scale=8, border=4)
+png_buffer.seek(0)
+
+# Generate SVG in-memory
+svg_buffer = io.BytesIO()
+qr.save(svg_buffer, kind="svg", scale=8, border=4)
+svg_buffer.seek(0)
+
+# Convert PNG to base64 for display
+png_base64 = base64.b64encode(png_buffer.getvalue()).decode()
+png_data_url = f"data:image/png;base64,{png_base64}"
+
+# Show the QR visually
+st.image(png_data_url, width=250)
+
+# Download buttons
+col1, col2 = st.columns(2)
+
+with col1:
+    st.download_button(
+        label="⬇ Download PNG",
+        data=png_buffer.getvalue(),
+        file_name=f"{name.replace(' ','_')}.png",
+        mime="image/png",
+    )
+
+with col2:
+    st.download_button(
+        label="⬇ Download SVG",
+        data=svg_buffer.getvalue(),
+        file_name=f"{name.replace(' ','_')}.svg",
+        mime="image/svg+xml",
+    )
+
+# Optional: show SVG code in an expander
+with st.expander("View SVG Code"):
+    st.code(svg_buffer.getvalue().decode(), language="xml")
+
 QR_PAYLOADS = {
     "Bottle Filter": """AQUASHIELD v1.0
 BOTTLE FILTER (EN/ES)
@@ -132,45 +174,3 @@ st.write("Eight crisis-zone safe-water methods in QR format.\nAll instructions a
 for name, payload in QR_PAYLOADS.items():
     st.markdown("---")
     st.subheader(name)
-
-    qr = create_qr(payload)
-
-# Generate PNG in-memory
-png_buffer = io.BytesIO()
-qr.save(png_buffer, kind="png", scale=8, border=4)
-png_buffer.seek(0)
-
-# Generate SVG in-memory
-svg_buffer = io.BytesIO()
-qr.save(svg_buffer, kind="svg", scale=8, border=4)
-svg_buffer.seek(0)
-
-# Convert PNG to base64 for display
-png_base64 = base64.b64encode(png_buffer.getvalue()).decode()
-png_data_url = f"data:image/png;base64,{png_base64}"
-
-# Show the QR visually
-st.image(png_data_url, width=250)
-
-# Download buttons
-col1, col2 = st.columns(2)
-
-with col1:
-    st.download_button(
-        label="⬇ Download PNG",
-        data=png_buffer.getvalue(),
-        file_name=f"{name.replace(' ','_')}.png",
-        mime="image/png",
-    )
-
-with col2:
-    st.download_button(
-        label="⬇ Download SVG",
-        data=svg_buffer.getvalue(),
-        file_name=f"{name.replace(' ','_')}.svg",
-        mime="image/svg+xml",
-    )
-
-# Optional: show SVG code in an expander
-with st.expander("View SVG Code"):
-    st.code(svg_buffer.getvalue().decode(), language="xml")
