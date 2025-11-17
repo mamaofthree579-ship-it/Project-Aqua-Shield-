@@ -1,6 +1,7 @@
 import streamlit as st
 import segno
 import base64
+import io
 
 st.set_page_config(
     page_title="AquaShield QR Library",
@@ -11,7 +12,7 @@ st.set_page_config(
 # QR RENDERING UTILITIES
 # -------------------------------------------------------------
 
-def to_svg_base64(qr_obj, scale=8, border=4):
+def to_svg_base64(qr_obj, scale=4, border=4):
     """Convert Segno QR object into Base64-encoded SVG."""
     svg = qr_obj.svg_inline(scale=scale, border=border)
     b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
@@ -134,20 +135,43 @@ for name, payload in QR_PAYLOADS.items():
     st.subheader(name)
 
     qr = create_qr(payload)
-    img_b64, svg_raw = to_svg_base64(qr)
 
-    # Display QR
-    st.image(img_b64, width=250)
+# Generate PNG in-memory
+png_buffer = io.BytesIO()
+qr.save(png_buffer, kind="png", scale=8, border=4)
+png_buffer.seek(0)
 
-    # Expand to view raw SVG
-    with st.expander("View SVG Code"):
-        st.code(svg_raw, language="xml")
+# Generate SVG in-memory
+svg_buffer = io.BytesIO()
+qr.save(svg_buffer, kind="svg", scale=8, border=4)
+svg_buffer.seek(0)
 
-    # Download button for SVG
-    svg_filename = f"AquaShield_{name.replace(' ', '_')}.svg"
+# Convert PNG to base64 for display
+png_base64 = base64.b64encode(png_buffer.getvalue()).decode()
+png_data_url = f"data:image/png;base64,{png_base64}"
+
+# Show the QR visually
+st.image(png_data_url, width=250)
+
+# Download buttons
+col1, col2 = st.columns(2)
+
+with col1:
+    st.download_button(
+        label="⬇ Download PNG",
+        data=png_buffer.getvalue(),
+        file_name=f"{name.replace(' ','_')}.png",
+        mime="image/png",
+    )
+
+with col2:
     st.download_button(
         label="⬇ Download SVG",
-        data=svg_raw,
-        file_name=svg_filename,
-        mime="image/svg+xml"
+        data=svg_buffer.getvalue(),
+        file_name=f"{name.replace(' ','_')}.svg",
+        mime="image/svg+xml",
     )
+
+# Optional: show SVG code in an expander
+with st.expander("View SVG Code"):
+    st.code(svg_buffer.getvalue().decode(), language="xml")
