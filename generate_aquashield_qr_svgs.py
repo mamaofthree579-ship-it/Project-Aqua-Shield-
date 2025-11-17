@@ -18,9 +18,6 @@ def to_svg_base64(qr_obj, scale=4, border=4):
     b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
     return f"data:image/svg+xml;base64,{b64}", svg
 
-
-qr = create_qr(payload)
-
 # Generate PNG in-memory
 png_buffer = io.BytesIO()
 qr.save(png_buffer, kind="png", scale=8, border=4)
