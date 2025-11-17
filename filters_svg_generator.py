@@ -1,3 +1,4 @@
+from fpdf import FPDF
 import streamlit as st
 import base64
 import io
