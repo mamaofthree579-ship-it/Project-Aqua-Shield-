@@ -1,5 +1,8 @@
-streamlit 
-segno
-reportlab
-cairosvg 
+streamlit
+fpdf
+cairosvg
+pillow
+tinycss2
+cssselect2
+defusedxml
 lxml
