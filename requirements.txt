@@ -1,3 +1,2 @@
 streamlit 
 segno
-base64
