@@ -1,21 +1,46 @@
 import streamlit as st
 import segno
+import base64
 
-st.title("AquaShield QR Library - Text Instructions")
+st.set_page_config(
+    page_title="AquaShield QR Library",
+    layout="centered",
+)
 
-# Your QR data
-payloads = {
-    "qr01_bottle": """AQUASHIELD v1.0
+# -------------------------------------------------------------
+# QR RENDERING UTILITIES
+# -------------------------------------------------------------
+
+def to_svg_base64(qr_obj, scale=8, border=4):
+    """Convert Segno QR object into Base64-encoded SVG."""
+    svg = qr_obj.svg_inline(scale=scale, border=border)
+    b64 = base64.b64encode(svg.encode("utf-8")).decode("utf-8")
+    return f"data:image/svg+xml;base64,{b64}", svg
+
+
+def create_qr(payload):
+    """Create a QR code object from text payload."""
+    return segno.make(payload, error="M")
+
+
+# -------------------------------------------------------------
+# PAYLOADS — 8 AquaShield Instructions (EN + ES)
+# -------------------------------------------------------------
+
+QR_PAYLOADS = {
+    "Bottle Filter": """AQUASHIELD v1.0
 BOTTLE FILTER (EN/ES)
 
 EN:
-Cloth on bottle mouth. Add gravel, sand, charcoal. Discard first 1L. Pour slow. Always disinfect after: boil, SODIS, or chlorine.
+Cloth on bottle mouth. Add gravel, sand, charcoal. Discard first 1L.
+Pour slowly. Always disinfect after: boil, SODIS, chlorine.
 
 ES:
-Tela en la boca. Agrega grava, arena, carbón. Desecha 1L inicial. Verter despacio. Desinfecta siempre: hervir, SODIS o cloro.
+Tela en la boca. Agrega grava, arena, carbón. Desecha 1L inicial.
+Verter despacio. Desinfecta siempre: hervir, SODIS o cloro.
 """,
 
-    "qr02_cloth": """AQUASHIELD v1.0
+    "Cloth Filter": """AQUASHIELD v1.0
 CLOTH FILTER (EN/ES)
 
 EN:
@@ -25,79 +50,104 @@ ES:
 Dobla tela 4–8 capas. Filtra dos veces. Debes desinfectar: hervir, SODIS o cloro.
 """,
 
-    "qr03_bucket": """AQUASHIELD v1.0
+    "Bucket Filter": """AQUASHIELD v1.0
 BUCKET FILTER (EN/ES)
 
 EN:
-Layers top→bottom: cloth, gravel, fine gravel, charcoal, sand, cloth. Let drip into clean bucket. Disinfect after.
+Layers top→bottom: cloth, gravel, fine gravel, charcoal, sand, cloth.
+Let drip into clean bucket. Disinfect after.
 
 ES:
-Capas arriba→abajo: tela, grava, grava fina, carbón, arena, tela. Dejar gotear. Desinfectar después.
+Capas arriba→abajo: tela, grava, grava fina, carbón, arena, tela.
+Dejar gotear. Desinfectar después.
 """,
 
-    "qr04_ceramic": """AQUASHIELD v1.0
+    "Ceramic Filter": """AQUASHIELD v1.0
 CERAMIC FILTER (EN/ES)
 
 EN:
-Clay+fine sawdust 3:1. Shape. Dry 2–3 days. Fire to harden. Filters microbes, not chemicals. Disinfect water after.
+Clay + fine sawdust 3:1. Shape. Dry 2–3 days. Fire. Filters microbes, not chemicals.
 
 ES:
-Arcilla+aserrín 3:1. Moldea. Seca 2–3 días. Cuece. Filtra microbios, no químicos. Desinfecta el agua después.
+Arcilla + aserrín 3:1. Moldea. Seca 2–3 días. Cuece. Filtra microbios, no químicos.
 """,
 
-    "qr05_sodis": """AQUASHIELD v1.0
-SODIS (EN/ES)
+    "SODIS": """AQUASHIELD v1.0
+SOLAR DISINFECTION (EN/ES)
 
 EN:
-Clear PET bottle. Shake 20 sec. Sun 6 hrs (cloudy: 2 days). Kills microbes, not chemicals.
+Clear PET bottle. Shake 20 sec. Leave in sun 6 hrs (cloudy: 2 days).
+Kills microbes, not chemicals.
 
 ES:
-Botella PET clara. Agita 20 seg. Sol 6 hrs (nublado: 2 días). Mata microbios, no químicos.
+Botella PET clara. Agita 20 seg. Sol 6 hrs (nublado: 2 días).
+Mata microbios, no químicos.
 """,
 
-    "qr06_3tier": """AQUASHIELD v1.0
-3-TIER METHOD (EN/ES)
+    "3-Tier Method": """AQUASHIELD v1.0
+3-TIER SAFE WATER METHOD (EN/ES)
 
 EN:
 1) Settle 6–12h + cloth.
-2) Sand+charcoal filter.
-3) Disinfect (boil/SODIS/chlorine).
-Do NOT use water smelling like fuel/chemicals.
+2) Sand + charcoal filter.
+3) Disinfect (boil / SODIS / chlorine).
 
 ES:
 1) Reposar 6–12h + tela.
-2) Arena+carbón.
-3) Desinfectar (hervir/SODIS/cloro).
-NO usar agua con olor a combustible/químicos.
+2) Arena + carbón.
+3) Desinfectar (hervir / SODIS / cloro).
 """,
 
-    "qr07_safe_rules": """AQUASHIELD v1.0
-SAFE WATER (EN/ES)
+    "Safe Water Rules": """AQUASHIELD v1.0
+HOUSEHOLD SAFE WATER RULES (EN/ES)
 
 EN:
-Use clean containers with lids. Don’t touch inside. Filter+disinfect always. If water smells like fuel, chemicals, or sewage, DO NOT use.
+Use clean containers with lids. Don’t touch inside. Always filter + disinfect.
+If water smells like fuel or chemicals DO NOT use.
 
 ES:
-Usa envases limpios con tapa. No tocar adentro. Filtrar+desinfectar siempre. Si huele a combustible, químicos o aguas negras, NO usar.
+Usa envases limpios con tapa. No toques adentro. Filtrar + desinfectar siempre.
+Si huele a combustible o químicos NO usar.
 """,
 
-    "qr08_emergency_fast": """AQUASHIELD v1.0
-EMERGENCY WATER (EN/ES)
+    "Emergency Fast": """AQUASHIELD v1.0
+EMERGENCY FAST WATER METHOD (EN/ES)
 
 EN:
-Fast method: Cloth filter → SODIS 6 hrs → Use. If water dark, let settle 6–12h. Don’t drink water that smells like fuel.
+Cloth filter → SODIS 6 hrs. If very turbid: settle 6–12h. Do NOT drink water that smells like fuel.
 
 ES:
-Método rápido: Tela → SODIS 6 hrs → Usar. Si el agua está turbia, reposar 6–12h. No beber agua con olor a combustible.
+Tela → SODIS 6 hrs. Si está turbia: reposar 6–12h. No beber agua con olor a combustible.
 """
 }
 
-for name, text in payloads.items():
-    qr = segno.make(text, error="M")
-    
-    # Convert QR → inline SVG text
-    svg = qr.svg_inline(scale=3, border=4)
-    
-    # Streamlit can render SVG via markdown (unsafe allows raw SVG)
+
+# -------------------------------------------------------------
+# STREAMLIT APP UI
+# -------------------------------------------------------------
+
+st.title("🌍 AquaShield — QR Instruction Library")
+st.write("Eight crisis-zone safe-water methods in QR format.\nAll instructions are bilingual (EN/ES).")
+
+for name, payload in QR_PAYLOADS.items():
+    st.markdown("---")
     st.subheader(name)
-    st.markdown(svg, unsafe_allow_html=True)
+
+    qr = create_qr(payload)
+    img_b64, svg_raw = to_svg_base64(qr)
+
+    # Display QR
+    st.image(img_b64, width=250)
+
+    # Expand to view raw SVG
+    with st.expander("View SVG Code"):
+        st.code(svg_raw, language="xml")
+
+    # Download button for SVG
+    svg_filename = f"AquaShield_{name.replace(' ', '_')}.svg"
+    st.download_button(
+        label="⬇ Download SVG",
+        data=svg_raw,
+        file_name=svg_filename,
+        mime="image/svg+xml"
+    )
