@@ -29,12 +29,12 @@ def create_qr(payload):
 
 # Generate PNG in-memory
 png_buffer = io.BytesIO()
-qr.save(png_buffer, kind="png", scale=8, border=4)
+save(png_buffer, kind="png", scale=8, border=4)
 png_buffer.seek(0)
 
 # Generate SVG in-memory
 svg_buffer = io.BytesIO()
-qr.save(svg_buffer, kind="svg", scale=8, border=4)
+save(svg_buffer, kind="svg", scale=4, border=4)
 svg_buffer.seek(0)
 
 # Convert PNG to base64 for display
