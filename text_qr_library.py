@@ -88,7 +88,7 @@ ES: Nivel1 decantar 6–12h → filtrar tela. Nivel2 arena+carbón si posible. N
 SUMMARY
 EN: Multi-layer safety: settle → filter → disinfect. Do not rely on filtering alone for sewage-contaminated water.
 ES: Seguridad por capas: decantar → filtrar → desinfectar. No confiar solo en filtrado para agua con aguas residuales.
-"""
+""",
 }
 
 # -------------------------------------------------------------------
