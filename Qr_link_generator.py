@@ -13,7 +13,7 @@ st.write("Generates QR codes pointing to filter instructions or downloadable res
 # -------------------------------------------------------------------
 
 qr_targets = {
-    "Basic Gravity Micro-Bio Sand + Charcoal Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/basic_gravity_filter.md",
+    "Basic Gravity Micro-Bio Sand + Charcoal Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/basic_gravity_filter.md",
     "Ceramic Emergency Clay Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/ceramic_filter.md",
     "Cloth-Only Emergency Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/cloth_filter.md",
     "Family Bucket Filter (Sand + Charcoal)": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/family_bucket_filter.md",
