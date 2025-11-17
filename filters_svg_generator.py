@@ -31,7 +31,7 @@ def sanitize_for_pdf(text: str) -> str:
     return text
 
 def build_a5_pdf_bytes(pdf_text: str):
-    """Create A5 PDF bytes (FPDF) from plain ASCII-safe text and return BytesIO."""
+    """Create A5 PDF bytes (FPDF) from text and return a BytesIO containing bytes."""
     safe = sanitize_for_pdf(pdf_text)
     pdf = FPDF(format='A5')
     pdf.add_page()
@@ -39,8 +39,10 @@ def build_a5_pdf_bytes(pdf_text: str):
     pdf.set_font("Arial", size=11)
     for line in safe.splitlines():
         pdf.multi_cell(0, 6, line)
-    buf = io.BytesIO()
-    pdf.output(buf)
+
+    # Correct way—return raw PDF bytes from FPDF
+    pdf_bytes = pdf.output(dest="S").encode("latin-1")
+    buf = io.BytesIO(pdf_bytes)
     buf.seek(0)
     return buf
 
