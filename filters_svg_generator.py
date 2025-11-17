@@ -1,7 +1,6 @@
 import streamlit as st
 import base64
 import io
-import cairosvg
 
 st.set_page_config(page_title="AquaShield SVG Viewer", layout="centered")
 st.title("AquaShield — SVG Filters (viewer + downloads)")
