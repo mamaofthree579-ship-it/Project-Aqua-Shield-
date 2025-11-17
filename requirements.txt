@@ -2,3 +2,4 @@ streamlit
 segno
 reportlab
 cairosvg 
+lxml
