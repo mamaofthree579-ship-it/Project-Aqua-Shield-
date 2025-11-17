@@ -27,8 +27,6 @@ def create_qr(payload):
 # PAYLOADS — 8 AquaShield Instructions (EN + ES)
 # -------------------------------------------------------------
 
-qr = create_qr(payload)
-
 # Generate PNG in-memory
 png_buffer = io.BytesIO()
 qr.save(png_buffer, kind="png", scale=8, border=4)
