@@ -13,14 +13,13 @@ st.write("Generates QR codes pointing to filter instructions or downloadable res
 # -------------------------------------------------------------------
 
 qr_targets = {
-    "Basic Gravity Micro-Bio Sand + Charcoal Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/basic_gravity_filter.md",
-    "Ceramic Emergency Clay Filter": "https://example.com/filter/ceramic",
-    "Cloth-Only Emergency Filter": "https://example.com/filter/cloth",
-    "Family Bucket Filter (Sand + Charcoal)": "https://example.com/filter/bucket",
-    "Solar Disinfection (SODIS)": "https://example.com/filter/sodis",
-    "Crisis-Zone 3-Tier Water Safety Method": "https://example.com/filter/crisis",
-    "Full Aqua Shield Guidebook (PDF)": "https://example.com/resources/aquashield",
-    "All Files / Downloads Index": "https://example.com/resources/all"
+    "Basic Gravity Micro-Bio Sand + Charcoal Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/basic_gravity_filter.md",
+    "Ceramic Emergency Clay Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/ceramic_filter.md",
+    "Cloth-Only Emergency Filter": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/cloth_filter.md",
+    "Family Bucket Filter (Sand + Charcoal)": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/family_bucket_filter.md",
+    "Solar Disinfection (SODIS)": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/filters/sodis.md",
+    "Crisis-Zone 3-Tier Water Safety Method": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation/english/crisis_zone_filter_set.md",
+    "All Files / Downloads Index": "https://github.com/mamaofthree579-ship-it/Project-Aqua-Shield-/tree/main/documentation"
 }
 
 # -------------------------------------------------------------------
