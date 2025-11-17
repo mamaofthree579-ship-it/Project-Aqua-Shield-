@@ -7,6 +7,20 @@ st.set_page_config(page_title="AquaShield SVG Viewer", layout="centered")
 st.title("AquaShield — SVG Filters (viewer + downloads)")
 st.write("Displays SVGs as images (data URL) and offers downloads. PNG export requires `cairosvg` (optional).")
 
+def build_pdf(pdf_text: str, title: str):
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font("Arial", size=12)
+    for line in pdf_text.split("\n"):
+        pdf.multi_cell(0, 10, line)
+
+    # Save into an in-memory buffer (no file writes)
+    buffer = io.BytesIO()
+    pdf.output(buffer)
+    buffer.seek(0)
+    return buffer
+     
 # --- SVG source strings (same as you already have) ---
 filter_a_svg = """<?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <svg xmlns="http://www.w3.org/2000/svg"
