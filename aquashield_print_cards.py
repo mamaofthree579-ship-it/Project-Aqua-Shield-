@@ -1,21 +1,23 @@
 import streamlit as st
 from fpdf import FPDF
 from PIL import Image, ImageDraw, ImageFont
+import qrcode
 import io
 import base64
 import zipfile
 import tempfile
 import os
 import html
+import math
 
-st.set_page_config(page_title="AquaShield — Print-ready A5 Cards", layout="wide")
-st.title("AquaShield — Print-ready A5 Cards (Text-only + Image cards)")
+st.set_page_config(page_title="AquaShield — Print Layouts + QR", layout="wide")
+st.title("AquaShield — Print-ready Cards + Print Sheets + QR (EN/ES)")
 
 # -------------------------
 # Utilities
 # -------------------------
 def sanitize_for_pdf(text: str) -> str:
-    """Sanitize text to Latin-1 friendly characters to avoid FPDF crashes."""
+    """Make text safe for FPDF (latin-1)."""
     replacements = {
         "—": "-",
         "–": "-",
@@ -28,12 +30,10 @@ def sanitize_for_pdf(text: str) -> str:
     }
     for bad, good in replacements.items():
         text = text.replace(bad, good)
-    # fallback: replace any non-latin1 chars with '?'
     text = text.encode("latin-1", errors="replace").decode("latin-1")
     return text
 
 def build_a5_pdf_text_only(text: str):
-    """Return BytesIO with A5 PDF (text only)."""
     safe = sanitize_for_pdf(text)
     pdf = FPDF(format='A5')
     pdf.add_page()
@@ -44,140 +44,239 @@ def build_a5_pdf_text_only(text: str):
     output = pdf.output(dest="S").encode("latin-1")
     return io.BytesIO(output)
 
-def build_a5_pdf_with_image(text: str, png_bytes: bytes):
+def build_a4_two_up_a5(pages_buffers):
     """
-    Return BytesIO with A5 PDF that places a PNG at the top and text below.
-    png_bytes: raw PNG bytes
+    Build A4 PDF with two A5 pages per A4 sheet.
+    pages_buffers: list of BytesIO objects each containing an A5 PDF (single page).
+    We'll rasterize each A5 page into PNG via FPDF export -> but simpler: 
+    We'll render cards as image buffers (PIL) instead and compose them on A4.
     """
-    safe = sanitize_for_pdf(text)
-    # Write png_bytes to a temp file because fpdf.image() needs a filename
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpimg:
-        tmpimg.write(png_bytes)
-        tmpimg.flush()
-        img_path = tmpimg.name
-
-    try:
-        pdf = FPDF(format='A5')
+    # Expect pages_buffers given as PNG bytes (we will use image composition approach)
+    # pages_buffers here will be list of PNG bytes representing A5 card images at high res.
+    # Create A4 canvas (landscape or portrait?) We'll use portrait A4 and place two A5 vertically.
+    # A4 mm -> points: FPDF uses mm; we'll create final PDF via FPDF placing images.
+    pdf = FPDF(format='A4', unit='mm')
+    pdf.set_auto_page_break(False)
+    # A4 size in mm: 210 x 297; A5 is 148 x 210
+    a4_w_mm, a4_h_mm = 210, 297
+    card_w_mm, card_h_mm = 148, 210  # A5 portrait
+    # For each pair of PNGs, create a page
+    i = 0
+    while i < len(pages_buffers):
         pdf.add_page()
-        # Place image at top with margins
-        margin = 10  # mm
-        page_w = pdf.w - 2 * margin  # printable width in mm
-        # Insert image width = page_w (fpdf will scale height proportionally)
-        pdf.image(img_path, x=margin, y=margin, w=page_w)
-        # Move below image
-        # Estimate image height in mm: FPDF calculates internally but we can add spacing
-        # Add a spacer
-        pdf.ln(5)
-        pdf.set_font("Arial", size=11)
-        pdf.set_left_margin(margin)
-        pdf.set_right_margin(margin)
-        pdf.multi_cell(0, 6, safe)
-        output = pdf.output(dest="S").encode("latin-1")
-        return io.BytesIO(output)
-    finally:
-        # Cleanup temp file
+        # top card (centered horizontally)
+        top_img = pages_buffers[i]
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as t1:
+            t1.write(top_img)
+            t1.flush()
+            img1 = t1.name
+        pdf.image(img1, x=(a4_w_mm - card_w_mm)/2.0, y=10, w=card_w_mm)
+        # bottom card if exists
+        if i+1 < len(pages_buffers):
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as t2:
+                t2.write(pages_buffers[i+1])
+                t2.flush()
+                img2 = t2.name
+            pdf.image(img2, x=(a4_w_mm - card_w_mm)/2.0, y=10 + card_h_mm + 10, w=card_w_mm)
+            # cleanup
+            try:
+                os.remove(img2)
+            except:
+                pass
         try:
-            os.remove(img_path)
-        except Exception:
+            os.remove(img1)
+        except:
             pass
+        i += 2
+    out = pdf.output(dest="S").encode("latin-1")
+    return io.BytesIO(out)
 
-def create_schematic_png(filter_key: str, size=(800, 600)) -> bytes:
+def build_a4_four_up_a6(png_buffers):
     """
-    Programmatically draw a PNG schematic for the given filter_key using Pillow.
-    Returns PNG bytes.
+    Compose 4 A6 cards onto one A4 page (2x2 grid).
+    png_buffers: list of PNG bytes for A6-sized cards (or we'll scale).
     """
+    # Create PDF A4 and place four images per page
+    pdf = FPDF(format='A4', unit='mm')
+    pdf.set_auto_page_break(False)
+    a4_w_mm, a4_h_mm = 210, 297
+    # A6 size in mm: 105 x 148 (portrait)
+    a6_w_mm, a6_h_mm = 105, 148
+    i = 0
+    while i < len(png_buffers):
+        pdf.add_page()
+        positions = [
+            ((a4_w_mm/4.0) - (a6_w_mm/2.0), 10),  # upper-left approx center quarter
+            ((3*a4_w_mm/4.0) - (a6_w_mm/2.0), 10),  # upper-right
+            ((a4_w_mm/4.0) - (a6_w_mm/2.0), 10 + a6_h_mm + 10),  # lower-left
+            ((3*a4_w_mm/4.0) - (a6_w_mm/2.0), 10 + a6_h_mm + 10),  # lower-right
+        ]
+        for slot in range(4):
+            if i+slot >= len(png_buffers):
+                break
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as t:
+                t.write(png_buffers[i+slot])
+                t.flush()
+                path = t.name
+            x_mm, y_mm = positions[slot]
+            pdf.image(path, x=x_mm, y=y_mm, w=a6_w_mm)
+            try:
+                os.remove(path)
+            except:
+                pass
+        i += 4
+    out = pdf.output(dest="S").encode("latin-1")
+    return io.BytesIO(out)
+
+def pil_text_wrap(draw, text, font, max_width):
+    """Simple helper to wrap text for PIL drawing; returns list of lines"""
+    words = text.split()
+    lines = []
+    cur = ""
+    for w in words:
+        test = (cur + " " + w).strip()
+        wwidth = draw.textbbox((0,0), test, font=font)[2]
+        if wwidth <= max_width:
+            cur = test
+        else:
+            if cur:
+                lines.append(cur)
+            cur = w
+    if cur:
+        lines.append(cur)
+    return lines
+
+# -------------------------
+# Schematic & QR生成 helpers
+# -------------------------
+def create_schematic_png(filter_key: str, size=(1200, 900)):
+    """Return PNG bytes for schematic (same as prior helper, slightly refined)."""
     w, h = size
     img = Image.new("RGB", (w, h), "white")
     draw = ImageDraw.Draw(img)
-    font = ImageFont.load_default()
-
-    # Basic header text
+    try:
+        font = ImageFont.truetype("DejaVuSans.ttf", 16)
+    except:
+        font = ImageFont.load_default()
     draw.text((20, 12), filter_key, fill="black", font=font)
-
-    # Simple diagrams per filter_key
-    # We'll draw simple shapes that mirror the SVG line-art used earlier
+    # simple shapes per key
     if "Basic Bottle" in filter_key:
-        # vertical bottle
-        left = w//2 - 60
-        top = 60
-        right = w//2 + 60
-        bottom = h - 120
-        draw.rectangle([left, top, right, bottom], outline="black", width=2)
-        # layers
-        y1 = top + 80
-        y2 = y1 + 80
-        y3 = y2 + 80
-        draw.line([left, y1, right, y1], fill="black")
-        draw.text((20, y1-10), "Charcoal layer", fill="black", font=font)
-        draw.line([left, y2, right, y2], fill="black")
-        draw.text((20, y2-10), "Sand layer", fill="black", font=font)
-        draw.line([left, y3, right, y3], fill="black")
-        draw.text((20, y3-10), "Gravel layer", fill="black", font=font)
-
-    elif "Bottle-Neck" in filter_key:
-        # cartridge rectangle and labels
-        cx = w//2
-        draw.rectangle([cx-40, 100, cx+40, 480], outline="black", width=2)
-        draw.text((20, 130), "Microfiber / Cloth", fill="black", font=font)
-        draw.line([cx-40, 180, cx+40, 180], fill="black")
-        draw.text((20, 210), "Optional sand", fill="black", font=font)
-        draw.line([cx-40, 260, cx+40, 260], fill="black")
-        draw.text((20, 290), "Charcoal", fill="black", font=font)
-
-    elif "Gravity Bucket" in filter_key or "Family Bucket" in filter_key:
-        left = 100
-        right = w - 100
+        left = w//2 - 140
         top = 80
-        bottom = h - 120
-        draw.rectangle([left, top, right, bottom], outline="black", width=2)
-        # draw layered lines
-        step = (bottom - top) // 6
-        labels = ["Cloth/diffuser", "Coarse gravel", "Medium gravel", "Charcoal", "Deep sand"]
+        right = w//2 + 140
+        bottom = h - 160
+        draw.rectangle([left, top, right, bottom], outline="black", width=3)
+        # layers: charcoal, sand, gravel, cloth
+        layer_h = (bottom - top) / 4
+        labels = ["Charcoal", "Fine sand", "Small gravel", "Cloth plug"]
         for i, lab in enumerate(labels):
-            y = top + (i+1)*step
-            draw.line([left, y, right, y], fill="black")
-            draw.text((20, y-10), lab, fill="black", font=font)
-
-    elif "Clay-Sawdust" in filter_key:
-        # draw pot
+            y = int(top + (i+1)*layer_h)
+            draw.line([left, y, right, y], fill="black", width=2)
+            draw.text((40, int(y - layer_h/2)), f"Layer: {lab}", fill="black", font=font)
+    elif "Bottle-Neck" in filter_key:
         cx = w//2
-        draw.ellipse([cx-160, 120, cx+160, 200], outline="black")
-        draw.rectangle([cx-160, 200, cx+160, 360], outline="black")
-        draw.ellipse([cx-140, 360, cx+140, 400], outline="black")
-        draw.text((20, 220), "Porous ceramic pot (locally fired)", fill="black", font=font)
-        draw.text((20, 240), "Optional silver coating; charcoal pad bottom", fill="black", font=font)
-
+        draw.rectangle([cx-60, 120, cx+60, h-120], outline="black", width=3)
+        parts = ["Microfiber", "Optional sand", "Charcoal", "Outlet plug"]
+        segment = (h-240)/len(parts)
+        for idx, p in enumerate(parts):
+            y = 120 + int((idx+1)*segment)
+            draw.line([cx-60, y, cx+60, y], fill="black", width=2)
+            draw.text((40, y - int(segment/2)), p, fill="black", font=font)
+    elif "Gravity Bucket" in filter_key or "Family Bucket" in filter_key:
+        left = 120
+        right = w - 120
+        top = 80
+        bottom = h - 160
+        draw.rectangle([left, top, right, bottom], outline="black", width=3)
+        layers = ["Cloth/diffuser", "Coarse gravel", "Small gravel", "Charcoal", "Deep sand"]
+        step = (bottom - top) / (len(layers) + 1)
+        for i, lab in enumerate(layers):
+            y = int(top + (i+1)*step)
+            draw.line([left, y, right, y], fill="black", width=2)
+            draw.text((40, y - int(step/2)), lab, fill="black", font=font)
+    elif "Clay-Sawdust" in filter_key:
+        cx = w//2
+        draw.ellipse([cx-200, 120, cx+200, 220], outline="black", width=3)
+        draw.rectangle([cx-180, 220, cx+180, 420], outline="black", width=3)
+        draw.ellipse([cx-160, 420, cx+160, 460], outline="black", width=3)
+        draw.text((40, 240), "Porous ceramic pot (locally fired)", fill="black", font=font)
     elif "Cloth Emergency" in filter_key:
-        draw.rectangle([100, 120, w-100, h-220], outline="black", width=2)
-        draw.text((120, 140), "Fold cloth 4-8 layers", fill="black", font=font)
-        draw.text((120, 170), "Secure over container; pour slowly", fill="black", font=font)
-
+        draw.rectangle([80, 120, w-80, h-180], outline="black", width=3)
+        draw.text((100, 160), "Fold cloth 4-8 layers", fill="black", font=font)
+        draw.text((100, 190), "Secure over clean container; pour slowly", fill="black", font=font)
     elif "SODIS" in filter_key:
-        draw.rectangle([80, 100, 220, 260], outline="black")
-        draw.text((90, 200), "Clear PET bottle", fill="black", font=font)
-        draw.rectangle([300, 100, 440, 260], outline="black")
-        draw.text((310, 200), "Sunny surface", fill="black", font=font)
-        draw.text((20, 280), "Expose in full sun 6 hours (clear) or 2 days partial", fill="black", font=font)
-
+        draw.rectangle([60, 100, 220, 260], outline="black", width=2)
+        draw.text((70, 230), "Clear PET bottle", fill="black", font=font)
+        draw.rectangle([320, 100, 480, 260], outline="black", width=2)
+        draw.text((330, 230), "Sunny surface", fill="black", font=font)
+        draw.text((60, 300), "Expose 6 hours (clear) or 2 days (partial)", fill="black", font=font)
     elif "Crisis-Zone" in filter_key:
-        draw.rectangle([60, 100, w-60, h-120], outline="black")
-        draw.text((80, 140), "Tier 1: Settling + Cloth", fill="black", font=font)
-        draw.text((80, 180), "Tier 2: Charcoal + Sand microfilter", fill="black", font=font)
-        draw.text((80, 220), "Tier 3: Disinfection (SODIS/boil/chlorine)", fill="black", font=font)
-
+        draw.text((60, 140), "Tier 1: Settling + Cloth", fill="black", font=font)
+        draw.text((60, 180), "Tier 2: Charcoal + Sand microfilter", fill="black", font=font)
+        draw.text((60, 220), "Tier 3: Disinfection (SODIS/boil/chlorine)", fill="black", font=font)
     else:
-        draw.text((20, 80), "Schematic not available", fill="black", font=font)
+        draw.text((40, 120), "Schematic not available", fill="black", font=font)
 
-    # Save to bytes
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    out.seek(0)
+    return out.getvalue()
+
+def create_qr_png(payload: str, box_size=4, border=2):
+    q = qrcode.QRCode(box_size=box_size, border=border)
+    q.add_data(payload)
+    q.make(fit=True)
+    img = q.make_image(fill_color="black", back_color="white").convert("RGB")
+    out = io.BytesIO()
+    img.save(out, format="PNG")
+    out.seek(0)
+    return out.getvalue()
+
+def compose_card_image(filter_key: str, lang_short_text: str, include_schematic=True, qr_payload=None, card_size=(1200, 900)):
+    """Create a composite PNG for a single A5 card: schematic (optional), text, QR."""
+    w, h = card_size
+    img = Image.new("RGB", (w, h), "white")
+    draw = ImageDraw.Draw(img)
+    try:
+        font_h = ImageFont.truetype("DejaVuSans.ttf", 20)
+        font_b = ImageFont.truetype("DejaVuSans.ttf", 14)
+    except:
+        font_h = ImageFont.load_default()
+        font_b = ImageFont.load_default()
+    # Header
+    draw.text((20, 10), filter_key, fill="black", font=font_h)
+    # If schematic include at top-right
+    if include_schematic:
+        schematic = create_schematic_png(filter_key, size=(int(w*0.55), int(h*0.45)))
+        s_img = Image.open(io.BytesIO(schematic))
+        s_w, s_h = s_img.size
+        img.paste(s_img, (w - s_w - 20, 40))
+    # Text area left side below header
+    text_area_x = 20
+    text_area_y = 60
+    text_area_w = w - (int(w*0.55) + 60) if include_schematic else w - 40
+    lines = pil_text_wrap(draw, lang_short_text, font_b, text_area_w)
+    y = text_area_y
+    for line in lines:
+        draw.text((text_area_x, y), line, fill="black", font=font_b)
+        y += 18
+    # QR code in bottom-right
+    if qr_payload:
+        qr_png = create_qr_png(qr_payload, box_size=6, border=1)
+        qr_img = Image.open(io.BytesIO(qr_png))
+        qr_w, qr_h = qr_img.size
+        qr_pos = (w - qr_w - 20, h - qr_h - 20)
+        img.paste(qr_img, qr_pos)
+        # label
+        draw.text((qr_pos[0]-10, qr_pos[1]-20), "Scan for short instructions", fill="black", font=font_b)
     out = io.BytesIO()
     img.save(out, format="PNG")
     out.seek(0)
     return out.getvalue()
 
 # -------------------------
-# Sample filters and texts (English & Spanish)
-# You should reuse your existing dictionaries; for brevity, we include 8 keys and reuse earlier text.
-# Replace or extend the strings as needed.
+# Filter data (texts in EN/ES)
+# Use your real texts here; I reuse previous dictionaries but recommend replacing with your final wording.
 # -------------------------
 FILTER_KEYS = [
     "Filter A - Basic Bottle Microfilter",
@@ -190,64 +289,81 @@ FILTER_KEYS = [
     "Filter H - Crisis-Zone 3-Tier Method",
 ]
 
-# Short and full texts in English
+# Short and full texts in English (use the full versions from prior)
 FILTER_TEXTS_SHORT_EN = {
-    "Filter A - Basic Bottle Microfilter": "Filter A - Short\n\nMake: ...\nUse: ...\n",
-    "Filter B - Bottle-Neck Cartridge Filter": "Filter B - Short\n\nMake: ...\nUse: ...\n",
-    "Filter C - Gravity Bucket Filter": "Filter C - Short\n\nMake: ...\nUse: ...\n",
-    "Filter D - Family Bucket Filter": "Filter D - Short\n\nMake: ...\nUse: ...\n",
-    "Filter E - Clay-Sawdust Ceramic Filter": "Filter E - Short\n\nMake: ...\nUse: ...\n",
-    "Filter F - Cloth Emergency Filter": "Filter F - Short\n\nMake: ...\nUse: ...\n",
-    "Filter G - SODIS Solar Disinfection": "Filter G - Short\n\nMake: ...\nUse: ...\n",
-    "Filter H - Crisis-Zone 3-Tier Method": "Filter H - Short\n\nMake: ...\nUse: ...\n",
+    "Filter A - Basic Bottle Microfilter": "Filter A - Short\n\nCut bottle, tie cloth, add charcoal, sand, gravel. Pour slowly; discard first liter; disinfect before drinking.",
+    "Filter B - Bottle-Neck Cartridge Filter": "Filter B - Short\n\nPack neck with microfiber, optional sand and charcoal. Pour slowly; discard first 1-2 L; replace media when turbid.",
+    "Filter C - Gravity Bucket Filter": "Filter C - Short\n\nStack layers in bucket: cloth, gravel, charcoal, sand. Fill top, collect from bottom. Disinfect before drinking.",
+    "Filter D - Family Bucket Filter": "Filter D - Short\n\nTwo-bucket system with spigot. Top filter: gravel, charcoal, sand. Replace charcoal monthly; disinfect before drinking.",
+    "Filter E - Clay-Sawdust Ceramic Filter": "Filter E - Short\n\nMake porous pot (clay+sawdust). Use as cup; optional silver coat. Pour and collect; disinfect after if drinking.",
+    "Filter F - Cloth Emergency Filter": "Filter F - Short\n\nFold clean cloth 4-8 layers. Pour slowly, repeat if turbid, then disinfect.",
+    "Filter G - SODIS Solar Disinfection": "Filter G - Short\n\nPre-filter to clear, fill PET bottle, expose to full sun 6 hours (clear) or 2 days (partial).",
+    "Filter H - Crisis-Zone 3-Tier Method": "Filter H - Short\n\nTier 1: Settling + cloth. Tier 2: Charcoal+sand microfilter. Tier 3: Disinfection (SODIS/boil/chlorine).",
 }
 
 FILTER_TEXTS_FULL_EN = {
-    "Filter A - Basic Bottle Microfilter": "AQUASHIELD - Filter A (Full)\n\nFull text instructions...\n",
-    "Filter B - Bottle-Neck Cartridge Filter": "AQUASHIELD - Filter B (Full)\n\nFull text instructions...\n",
-    "Filter C - Gravity Bucket Filter": "AQUASHIELD - Filter C (Full)\n\nFull text instructions...\n",
-    "Filter D - Family Bucket Filter": "AQUASHIELD - Filter D (Full)\n\nFull text instructions...\n",
-    "Filter E - Clay-Sawdust Ceramic Filter": "AQUASHIELD - Filter E (Full)\n\nFull text instructions...\n",
-    "Filter F - Cloth Emergency Filter": "AQUASHIELD - Filter F (Full)\n\nFull text instructions...\n",
-    "Filter G - SODIS Solar Disinfection": "AQUASHIELD - Filter G (Full)\n\nFull text instructions...\n",
-    "Filter H - Crisis-Zone 3-Tier Method": "AQUASHIELD - Filter H (Full)\n\nFull text instructions...\n",
+    "Filter A - Basic Bottle Microfilter": "AQUASHIELD - Filter A (Full)\n\nPurpose: Low-cost gravity bottle filter to improve clarity and taste. Not a disinfectant.\n\nMaterials: 1 bottle, cloth, charcoal, fine sand, gravel.\n\nSteps: ... (full instructions as provided earlier).",
+    "Filter B - Bottle-Neck Cartridge Filter": "AQUASHIELD - Filter B (Full)\n\n... (full text).",
+    "Filter C - Gravity Bucket Filter": "AQUASHIELD - Filter C (Full)\n\n... (full text).",
+    "Filter D - Family Bucket Filter": "AQUASHIELD - Filter D (Full)\n\n... (full text).",
+    "Filter E - Clay-Sawdust Ceramic Filter": "AQUASHIELD - Filter E (Full)\n\n... (full text).",
+    "Filter F - Cloth Emergency Filter": "AQUASHIELD - Filter F (Full)\n\n... (full text).",
+    "Filter G - SODIS Solar Disinfection": "AQUASHIELD - Filter G (Full)\n\n... (full text).",
+    "Filter H - Crisis-Zone 3-Tier Method": "AQUASHIELD - Filter H (Full)\n\n... (full text).",
 }
 
-# Spanish short/full (you can replace with the translations you already have)
-FILTER_TEXTS_SHORT_ES = {k: "ES short: " + (FILTER_TEXTS_SHORT_EN[k] or "") for k in FILTER_KEYS}
-FILTER_TEXTS_FULL_ES = {k: "ES full: " + (FILTER_TEXTS_FULL_EN[k] or "") for k in FILTER_KEYS}
+# Spanish translations — you can refine these. They use latin-1 characters supported by FPDF.
+FILTER_TEXTS_SHORT_ES = {
+    "Filter A - Basic Bottle Microfilter": "Filtro A - Resumen\n\nCorte la botella, ate paño, agregue carbón, arena, grava. Vierta despacio; deseche primer litro; desinfecte antes de beber.",
+    "Filter B - Bottle-Neck Cartridge Filter": "Filtro B - Resumen\n\nEmpaque el cuello con microfibra, arena y carbón opcionales. Vierta despacio; deseche 1-2 L iniciales; reemplace medios según turbidez.",
+    "Filter C - Gravity Bucket Filter": "Filtro C - Resumen\n\nApile capas: paño, grava, carbón, arena. Llene arriba; recoja abajo. Desinfectar antes de beber.",
+    "Filter D - Family Bucket Filter": "Filtro D - Resumen\n\nSistema de dos cubetas con llave. Filtro superior: grava, carbón, arena. Reemplace carbón mensualmente; desinfecte antes de beber.",
+    "Filter E - Clay-Sawdust Ceramic Filter": "Filtro E - Resumen\n\nFabricar vasija porosa (arcilla+aserrín). Usar como taza; capa de plata opcional. Vierta y recoja; desinfecte para beber.",
+    "Filter F - Cloth Emergency Filter": "Filtro F - Resumen\n\nDoble paño limpio 4-8 capas. Vierta despacio, repita si está turbio, luego desinfecte.",
+    "Filter G - SODIS Solar Disinfection": "Filtro G - Resumen\n\nPrefiltrar hasta claro, llenar botella PET, exponer al sol 6 horas (claro) o 2 días (parcial).",
+    "Filter H - Crisis-Zone 3-Tier Method": "Filtro H - Resumen\n\nNivel 1: Sedimentación + paño. Nivel 2: Carbón+arena microfiltro. Nivel 3: Desinfección (SODIS/hervir/cloro).",
+}
+
+FILTER_TEXTS_FULL_ES = {
+    "Filter A - Basic Bottle Microfilter": "AQUASHIELD - Filtro A (Completo)\n\nPropósito: Filtro por gravedad de bajo costo... (texto completo)...",
+    "Filter B - Bottle-Neck Cartridge Filter": "AQUASHIELD - Filtro B (Completo)\n\n... (texto completo).",
+    "Filter C - Gravity Bucket Filter": "AQUASHIELD - Filtro C (Completo)\n\n... (texto completo).",
+    "Filter D - Family Bucket Filter": "AQUASHIELD - Filtro D (Completo)\n\n... (texto completo).",
+    "Filter E - Clay-Sawdust Ceramic Filter": "AQUASHIELD - Filtro E (Completo)\n\n... (texto completo).",
+    "Filter F - Cloth Emergency Filter": "AQUASHIELD - Filtro F (Completo)\n\n... (texto completo).",
+    "Filter G - SODIS Solar Disinfection": "AQUASHIELD - Filtro G (Completo)\n\n... (texto completo).",
+    "Filter H - Crisis-Zone 3-Tier Method": "AQUASHIELD - Filtro H (Completo)\n\n... (texto completo).",
+}
 
 # -------------------------
-# Sidebar options & language
+# Sidebar controls
 # -------------------------
-st.sidebar.header("Print-ready A5 Cards")
+st.sidebar.header("Print + QR Options")
 lang = st.sidebar.selectbox("Language / Idioma", ("English", "Español"))
-st.sidebar.markdown("Choose format and download cards for single filter or all filters as ZIP.")
-format_choice = st.sidebar.selectbox("Format", ("Text-only A5", "Image + Text A5"))
-
+format_choice = st.sidebar.selectbox("Card format", ("Text-only A5", "Image+Text A5"))
+print_layout = st.sidebar.selectbox("Print sheet layout", ("Single A5", "Two-up A5 per A4", "Four-up A6 per A4"))
 st.sidebar.markdown("---")
-st.sidebar.info("Text-only = smallest files. Image+Text includes a simple schematic PNG generated server-side.")
+st.sidebar.info("QR codes embed the short instruction text (language-aware). Image+Text uses a programmatic PNG schematic.")
 
 # -------------------------
-# Per-filter generation
+# Per-filter UI
 # -------------------------
-st.header("Generate print-ready A5 cards")
-
+st.header("Generate Cards and Print Sheets")
 col1, col2 = st.columns([1, 3])
 with col1:
     selected = st.selectbox("Select filter", FILTER_KEYS)
-    preview_only = st.checkbox("Preview only (don't create ZIP)", value=False)
+    preview_only = st.checkbox("Preview only (no ZIP)", value=False)
 with col2:
-    st.write("Choose single card or produce ZIP of all cards in selected language/format.")
+    st.write("Preview below. Download single cards or create print-ready ZIP of all cards/layouts.")
 
-# Get selected texts
+# Get texts
 def get_texts(key, lang):
     if lang == "English":
-        short = FILTER_TEXTS_SHORT_EN.get(key, "Short instructions not available.")
-        full = FILTER_TEXTS_FULL_EN.get(key, "Full instructions not available.")
+        short = FILTER_TEXTS_SHORT_EN.get(key, "")
+        full = FILTER_TEXTS_FULL_EN.get(key, "")
     else:
-        short = FILTER_TEXTS_SHORT_ES.get(key, "Instrucciones cortas no disponibles.")
-        full = FILTER_TEXTS_FULL_ES.get(key, "Instrucciones completas no disponibles.")
+        short = FILTER_TEXTS_SHORT_ES.get(key, "")
+        full = FILTER_TEXTS_FULL_ES.get(key, "")
     return short, full
 
 short_text, full_text = get_texts(selected, lang)
@@ -258,8 +374,11 @@ st.text(short_text)
 st.markdown("**Full (preview):**")
 st.text(full_text)
 
-# Buttons to create and download single PDFs
-st.markdown("### Download single card")
+# Build QR payload (short text)
+qr_payload = short_text.strip()
+
+# Single-card downloads
+st.markdown("### Download single card (selected filter)")
 if format_choice == "Text-only A5":
     buf_short = build_a5_pdf_text_only(short_text)
     buf_full = build_a5_pdf_text_only(full_text)
@@ -268,34 +387,35 @@ if format_choice == "Text-only A5":
     st.download_button("⬇ Download FULL A5 (text-only)", data=buf_full.getvalue(),
                        file_name=f"{selected.replace(' ', '_')}_FULL_{lang}.pdf", mime="application/pdf")
 else:
-    # Image + text: generate PNG and embed
-    png_bytes = create_schematic_png(selected, size=(1200, 900))
-    buf_short_img = build_a5_pdf_with_image(short_text, png_bytes)
-    buf_full_img = build_a5_pdf_with_image(full_text, png_bytes)
-    st.download_button("⬇ Download SHORT A5 (image+text)", data=buf_short_img.getvalue(),
-                       file_name=f"{selected.replace(' ', '_')}_SHORT_IMG_{lang}.pdf", mime="application/pdf")
-    st.download_button("⬇ Download FULL A5 (image+text)", data=buf_full_img.getvalue(),
-                       file_name=f"{selected.replace(' ', '_')}_FULL_IMG_{lang}.pdf", mime="application/pdf")
+    # create composite PNG for card including QR and schematic
+    card_png = compose_card_image(selected, short_text if lang=="English" else short_text, include_schematic=True, qr_payload=qr_payload)
+    buf_short_img = build_a5_pdf_with_image = None  # we'll create with helper below
+    # for convenience, produce A5 PDF with image + text
+    buf_short_img = build_a5_pdf_with_image_func(short_text if lang=="English" else short_text, card_png) if 'build_a5_pdf_with_image_func' in globals() else None
 
-# Option: Build ZIP for all filters
-st.markdown("---")
-st.markdown("### Build ZIP of all cards")
-if st.button("Create ZIP of all cards (may take a few seconds)"):
-    # create zip in memory
-    zipbuf = io.BytesIO()
-    with zipfile.ZipFile(zipbuf, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        for key in FILTER_KEYS:
-            short_t, full_t = get_texts(key, lang)
-            if format_choice == "Text-only A5":
-                s_buf = build_a5_pdf_text_only(short_t)
-                f_buf = build_a5_pdf_text_only(full_t)
-            else:
-                png_b = create_schematic_png(key, size=(1200, 900))
-                s_buf = build_a5_pdf_with_image(short_t, png_b)
-                f_buf = build_a5_pdf_with_image(full_t, png_b)
-            z.writestr(f"{key.replace(' ', '_')}_SHORT_{lang}.pdf", s_buf.getvalue())
-            z.writestr(f"{key.replace(' ', '_')}_FULL_{lang}.pdf", f_buf.getvalue())
-    zipbuf.seek(0)
-    st.download_button("⬇ Download ZIP (all cards)", data=zipbuf.getvalue(), file_name=f"AquaShield_All_Cards_{format_choice}_{lang}.zip", mime="application/zip")
-
-st.caption("Print-ready A5 cards: text-only and image+text options. Images are simple schematic drawings programmatically generated for reliability.")
+    # Since we didn't yet define build_a5_pdf_with_image_func inside this script, let's use existing helper:
+    def build_a5_pdf_with_image_local(text, png_bytes):
+        # Similar to earlier: place image at top and text below
+        safe = sanitize_for_pdf(text)
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmpimg:
+            tmpimg.write(png_bytes)
+            tmpimg.flush()
+            img_path = tmpimg.name
+        try:
+            pdf = FPDF(format='A5')
+            pdf.add_page()
+            margin = 10
+            page_w = pdf.w - 2 * margin
+            pdf.image(img_path, x=margin, y=margin, w=page_w)
+            pdf.ln(5)
+            pdf.set_font("Arial", size=11)
+            pdf.set_left_margin(margin)
+            pdf.set_right_margin(margin)
+            pdf.multi_cell(0, 6, safe)
+            out = pdf.output(dest="S").encode("latin-1")
+            return io.BytesIO(out)
+        finally:
+            try:
+                os.remove(img_path)
+            except:
+   
