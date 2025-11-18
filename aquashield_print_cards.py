@@ -393,7 +393,7 @@ else:
     # for convenience, produce A5 PDF with image + text
     buf_short_img = build_a5_pdf_with_image_func(short_text if lang=="English" else short_text, card_png) if 'build_a5_pdf_with_image_func' in globals() else None
 
-    # Since we didn't yet define build_a5_pdf_with_image_func inside this script, let's use existing helper:
+        # Since we didn't yet define build_a5_pdf_with_image_func inside this script, let's use existing helper:
     def build_a5_pdf_with_image_local(text, png_bytes):
         # Similar to earlier: place image at top and text below
         safe = sanitize_for_pdf(text)
@@ -418,4 +418,68 @@ else:
             try:
                 os.remove(img_path)
             except:
-   
+                pass
+
+    buf_short_img = build_a5_pdf_with_image_local(short_text if lang=="English" else short_text, card_png)
+    buf_full_img = build_a5_pdf_with_image_local(full_text if lang=="English" else full_text, card_png)
+
+    st.download_button("⬇ Download SHORT A5 (image+text)", data=buf_short_img.getvalue(),
+                       file_name=f"{selected.replace(' ', '_')}_SHORT_IMG_{lang}.pdf", mime="application/pdf")
+    st.download_button("⬇ Download FULL A5 (image+text)", data=buf_full_img.getvalue(),
+                       file_name=f"{selected.replace(' ', '_')}_FULL_IMG_{lang}.pdf", mime="application/pdf")
+
+# Bulk ZIP creation: all cards in selected format and layout
+st.markdown("---")
+st.markdown("### Create ZIP for all filters (selected language & format)")
+
+if st.button("Create ZIP for all cards"):
+    with st.spinner("Generating cards and packaging ZIP..."):
+        zipbuf = io.BytesIO()
+        with zipfile.ZipFile(zipbuf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            # create single card PDFs and also compose print-sheet PDFs
+            single_short_bufs = []
+            single_full_bufs = []
+            # also create PNG card images for layouts
+            png_cards_for_layout = []
+            for key in FILTER_KEYS:
+                s_text, f_text = get_texts(key, lang)
+                # QR content is short text
+                qr_payload_local = s_text.strip()
+                if format_choice == "Text-only A5":
+                    s_buf = build_a5_pdf_text_only(s_text)
+                    f_buf = build_a5_pdf_text_only(f_text)
+                else:
+                    png_card = compose_card_image(key, s_text, include_schematic=True, qr_payload=qr_payload_local)
+                    # produce A5 PDF with image+text
+                    s_buf = build_a5_pdf_with_image_local(s_text, png_card)
+                    f_buf = build_a5_pdf_with_image_local(f_text, png_card)
+                    png_cards_for_layout.append(png_card)
+                # write single PDFs into zip
+                z.writestr(f"{key.replace(' ', '_')}_SHORT_{lang}.pdf", s_buf.getvalue())
+                z.writestr(f"{key.replace(' ', '_')}_FULL_{lang}.pdf", f_buf.getvalue())
+                single_short_bufs.append(s_buf)
+                single_full_bufs.append(f_buf)
+
+            # Now produce print layouts: two-up A5 and four-up A6 if requested
+            # Generate PNG images for each card if not already (for text-only we need to create simple PNG from PDF; easier: create PNG from compose_card_image using include_schematic=False)
+            if format_choice == "Text-only A5":
+                png_cards_for_layout = []
+                for key in FILTER_KEYS:
+                    s_text, _ = get_texts(key, lang)
+                    png = compose_card_image(key, s_text, include_schematic=False, qr_payload=s_text.strip(), card_size=(1200,900))
+                    png_cards_for_layout.append(png)
+
+            # Build two-up A5 per A4 PDF
+            two_up_pdf = build_a4_two_up_a5(png_cards_for_layout)
+            z.writestr(f"AquaShield_two_up_A5_{lang}.pdf", two_up_pdf.getvalue())
+
+            # Build four-up A6 per A4 PDF
+            four_up_pdf = build_a4_four_up_a6(png_cards_for_layout)
+            z.writestr(f"AquaShield_four_up_A6_{lang}.pdf", four_up_pdf.getvalue())
+
+        zipbuf.seek(0)
+        st.download_button("⬇ Download ZIP (all cards + print sheets)", data=zipbuf.getvalue(),
+                           file_name=f"AquaShield_All_Cards_{format_choice}_{lang}.zip", mime="application/zip")
+    st.success("ZIP ready for download.")
+
+st.caption("Notes: QR codes encode the short instruction text for quick access. Two-up A5 and four-up A6 sheets are print-ready. If you want different margins, bleed, or crop marks for a specific printer, tell me which offset and I will add them.")
